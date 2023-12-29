@@ -1,0 +1,439 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>Document</title>
+        <style>
+            li {
+                height: 50px;
+                margin: 0;
+                padding: 0;
+                list-style: none;
+                font-size: 20px;
+            }
+
+            body {
+                width: 750px;
+                margin: 0 auto;
+                /* background: pink; */
+            }
+
+            #box {
+                display: flex;
+            }
+
+            canvas {
+                /* margin: 0 auto; */
+                margin-top: 50px;
+                border: 10px solid rebeccapurple;
+                background-color: rgb(240, 240, 240);
+            }
+
+            #scoreBox {
+                display: none;
+                width: 150px;
+                height: 300px;
+                margin-top: 50px;
+                padding-top: 20px;
+                padding-left: 0;
+                border: 10px solid rebeccapurple;
+                border-left: none;
+                text-align: center;
+                background-color: rgb(240, 240, 240);
+            }
+        </style>
+    </head>
+
+    <body>
+        <div id="box">
+            <canvas width="600" height="600"></canvas>
+            <ul id="scoreBox">
+                <li>历史最高：</li>
+                <li></li>
+                <li>当前积分：</li>
+                <li></li>
+                <li>当前速度：</li>
+                <li></li>
+            </ul>
+        </div>
+
+        <script>
+            /**
+             * 画布
+             **/
+            const canvas = document.querySelector('canvas')
+            const ctx = canvas.getContext('2d')
+            ctx.font = '50px Arial'
+            ctx.fillText('贪吃蛇', 220, 220)
+            ctx.font = '18px Arial'
+            ctx.fillText('按回车键开始游戏', 225, 300)
+            ctx.fillText('上下左右键移动，空格键暂停和继续', 150, 350)
+            ctx.fillText('按q切换主题色', 235, 400)
+
+            /**
+             * 构成蛇和食物的盒子
+             **/
+            const box = {
+                width: 20,
+                height: 20,
+            }
+
+            /**
+             * 画盒子工具
+             **/
+            function draw(obj, color) {
+                ctx.fillStyle = color
+                if (obj.length) {
+                    for (let i = 0; i < obj.length; i++) {
+                        ctx.fillRect(obj[i].x, obj[i].y, box.width, box.height)
+                    }
+                } else {
+                    ctx.fillRect(obj.x, obj.y, obj.width, obj.height)
+                }
+                ctx.fillStyle = 'black'
+            }
+            //清楚盒子工具
+            function clear(obj) {
+                ctx.clearRect(obj.x, obj.y, obj.width, obj.height)
+            }
+
+            /**
+             * 食物
+             **/
+            let food = {
+                x: (Math.floor(Math.random() * (canvas.width - box.width)) % 20) * 20,
+                y: (Math.floor(Math.random() * (canvas.width - box.height)) % 20) * 20,
+                width: box.width,
+                height: box.height,
+            }
+            //更新食物坐标
+            food.updateXY = function () {
+                food.x = (Math.floor(Math.random() * (canvas.width - box.width)) % 20) * 20
+                food.y = (Math.floor(Math.random() * (canvas.width - box.width)) % 20) * 20
+            }
+            food.color = 'rgba(60,80,20,1)'
+
+            /**
+             * 蛇
+             **/
+            let snack = [
+                {x: 60, y: 60, width: box.width, height: box.height},
+                {x: 40, y: 60, width: box.width, height: box.height},
+                {x: 20, y: 60, width: box.width, height: box.height},
+            ]
+            //蛇的颜色
+            snack.headColor = 'rgba(50,50,50,1)'
+            snack.bodyColor = 'rgba(100,100,100,1)'
+            //蛇的移动方向
+            snack.direction = ''
+            //根据新坐标更新蛇头
+            snack.updateHead = function (newX, newY) {
+                // console.log('运行了吗')
+                let snackHead = {x: newX, y: newY, width: box.width, height: box.height}
+                snack.unshift(snackHead)
+            }
+            //去除蛇尾
+            snack.clearTail = function () {
+                clear(snack[snack.length - 1])
+                snack.pop()
+            }
+
+            /**
+             * 键盘监听
+             **/
+            let keyDirection = ''
+            let running = 1
+            let previousKey = ''
+            function getKeyDirection(event) {
+                if (event.keyCode === 37 && previousKey !== 'right') keyDirection = 'left'
+                if (event.keyCode === 38 && previousKey !== 'down') keyDirection = 'up'
+                if (event.keyCode === 39 && previousKey !== 'left') keyDirection = 'right'
+                if (event.keyCode === 40 && previousKey !== 'up') keyDirection = 'down'
+                if (keyDirection !== '') {
+                    previousKey = keyDirection
+                    running = 1
+                }
+                //按空格暂停游戏
+                if (event.keyCode === 32) {
+                    console.log(running)
+                    if (running === 1) {
+                        keyDirection = ''
+                        running = 0
+                    } else {
+                        keyDirection = previousKey
+                        running = 1
+                    }
+                }
+                //切换主题
+            }
+            function keyEventListen() {
+                document.addEventListener('keydown', getKeyDirection)
+            }
+
+            /**
+             * 碰撞检测
+             **/
+            //判断是否碰撞，碰撞返回true
+            function checkCollision(snack) {
+                if (
+                    snack[0].x > canvas.width - box.width ||
+                    snack[0].y > canvas.height - box.height ||
+                    snack[0].x < 0 ||
+                    snack[0].y < 0
+                ) {
+                    return true
+                }
+                snackTemp = snack.slice(1)
+                if (isOverlap(snack[0], snackTemp)) {
+                    return true
+                }
+                return false
+            }
+            // 判断坐标是否重合，重合返回true
+            function isOverlap(snackHead, obj) {
+                //判断头部与身体重合
+                if (obj.length) {
+                    for (let i = 0; i < obj.length; i++) {
+                        if (snackHead.x === obj[i].x && snackHead.y === obj[i].y) {
+                            return true
+                        }
+                    }
+                    return false
+                } else {
+                    //判断头部与食物重合
+                    if (snackHead.x === obj.x && snackHead.y === obj.y) {
+                        return true
+                    }
+                    return false
+                }
+            }
+
+            /**
+             * 速度
+             **/
+            let speed = 150
+            function changeSpeed(speed) {
+                clearInterval(setIntervalID)
+                setIntervalID = setInterval(game, speed)
+                li[5].innerHTML = `${speed}`
+            }
+            function speedRules(snack) {
+                switch (snack.length - 3) {
+                    case 5:
+                        speed = 130
+                        break
+                    case 10:
+                        speed = 110
+                        break
+                    case 15:
+                        speed = 90
+                        break
+                    case 20:
+                        speed = 80
+                        break
+                    case 25:
+                        speed = 70
+                        break
+                    case 30:
+                        speed = 60
+                        break
+                    default:
+                }
+                return speed
+            }
+
+            /**
+             * 积分
+             **/
+            let score = 0
+            let maxScore = 0
+            let scoreBox = document.querySelector('#scoreBox')
+            let li = document.querySelectorAll('li')
+            function recordScore() {
+                if (score > maxScore) {
+                    maxScore = score
+                    li[1].innerHTML = `${maxScore}`
+                }
+            }
+
+            /**
+             * 主题
+             **/
+            //主题切换监听
+            let themeCtr = 0
+            document.addEventListener('keydown', function (e) {
+                if (event.keyCode === 81) {
+                    themeCtr++
+                    if (themeCtr > 5) themeCtr = 0
+                    themeArr[themeCtr].getColor(food, snack, canvas, scoreBox)
+                    if (beginning === 1) {
+                        draw(food, food.color)
+                        draw(snack, snack.bodyColor)
+                        draw(snack[0], snack.headColor)
+                    }
+                }
+            })
+            class Theme {
+                constructor(foodColor, snackHeadColor, snackBodyColor, canvasColor, scoreBoxColor) {
+                    this.foodColor = foodColor
+                    this.snackHeadColor = snackHeadColor
+                    this.snackBodyColor = snackBodyColor
+                    this.canvasColor = canvasColor
+                    this.scoreBoxColor = canvasColor
+                }
+                getColor(food, snack, canvas, scoreBox) {
+                    food.color = this.foodColor
+                    snack.headColor = this.snackHeadColor
+                    snack.bodyColor = this.snackBodyColor
+                    canvas.style.borderColor = this.canvasColor
+                    scoreBox.style.borderColor = this.scoreBoxColor
+                }
+            }
+            //主题对象数组
+            let themeArr = [
+                new Theme(
+                    'rgba(60,80,20,1)',
+                    'rgba(50,50,50,1)',
+                    'rgba(100,100,100,1)',
+                    'rebeccapurple',
+                ),
+                new Theme(
+                    'rgba(110,180,240,1)',
+                    'rgba(20,60,20,1)',
+                    'rgba(180,150,180,1)',
+                    'rgb(140, 120, 140)',
+                ),
+                new Theme(
+                    'rgba(150,150,120,1)',
+                    'rgba(90,50,20,1)',
+                    'rgba(120,100,100,1)',
+                    'rgb(120, 140, 120)',
+                ),
+                new Theme(
+                    'rgba(90,70,70,1)',
+                    'rgba(130,60,100,1)',
+                    'rgba(125,140,125,1)',
+                    'rgb(135, 145, 135)',
+                ),
+                new Theme(
+                    'rgba(20,80,20,1)',
+                    'rgba(70,20,50,1)',
+                    'rgba(160,100,100,1)',
+                    'rgb(170, 140, 160)',
+                ),
+                new Theme(
+                    'rgba(60,60,50,1)',
+                    'rgba(80,20,80,1)',
+                    'rgba(110,110,180,1)',
+                    'rgb(130, 140, 120)',
+                ),
+            ]
+            function changeTheme(theme) {
+                theme.getColor(food, snack, canvas, scoreBox)
+            }
+
+            /**
+             * 初始化
+             **/
+            function initGame() {
+                //清空画布
+                ctx.clearRect(0, 0, canvas.width, canvas.height)
+                // //初始化主题
+                // themeArr[0].getColor(food, snack, canvas, scoreBox)
+                //初始化食物
+                draw(food, food.color)
+                console.log(food.color)
+
+                //初始化蛇
+                snack.length = 0
+                snack[0] = {x: 60, y: 60, width: box.width, height: box.height}
+                snack[1] = {x: 40, y: 60, width: box.width, height: box.height}
+                snack[2] = {x: 20, y: 60, width: box.width, height: box.height}
+                draw(snack[0], snack.headColor)
+                draw(snack[1], snack.bodyColor)
+                draw(snack[2], snack.bodyColor)
+                //初始化键盘监听
+                keyDirection = 'right'
+                running = 1
+                previousKey = 'right'
+                //初始化速度
+                speed = 150
+                li[5].innerHTML = `${speed}`
+                //初始化积分
+                score = 0
+                li[1].innerHTML = `${maxScore}`
+                li[3].innerHTML = `${score}`
+                scoreBox.style.display = 'block'
+            }
+
+            /**
+             * 游戏逻辑
+             **/
+            //游戏入口
+            function game() {
+                let newX = snack[0].x
+                let newY = snack[0].y
+                snack.direction = keyDirection
+                if (snack.direction === 'right') newX = newX + 20
+                if (snack.direction === 'left') newX = newX - 20
+                if (snack.direction === 'up') newY = newY - 20
+                if (snack.direction === 'down') newY = newY + 20
+                if (snack.direction !== '') {
+                    snack.updateHead(newX, newY)
+                    draw(snack[0], snack.headColor)
+                    draw(snack[1], snack.bodyColor)
+                    if (isOverlap(snack[0], food)) {
+                        score++
+                        li[3].innerHTML = `${score}`
+                        food.updateXY()
+                        while (isOverlap(food, snack)) {
+                            food.updateXY()
+                        }
+                        draw(food, food.color)
+                    } else {
+                        snack.clearTail()
+                    }
+                }
+                //改变蛇的移动速度
+                changeSpeed(speedRules(snack))
+                //检测是否发现碰撞
+                if (checkCollision(snack)) {
+                    recordScore()
+                    gameOver()
+                }
+            }
+
+            /**
+             * 结束游戏
+             **/
+            function gameOver() {
+                clearInterval(setIntervalID)
+                ctx.font = '50px Arial'
+                ctx.fillText('GAME OVER', 150, 220)
+                ctx.font = '18px Arial'
+                ctx.fillText('按回车键重新开始游戏', 215, 300)
+                beginning = 0
+                document.removeEventListener('keydown', getKeyDirection)
+                //等待重启游戏
+                document.addEventListener('keydown', star)
+            }
+
+            /**
+             * 启动游戏
+             **/
+            let setIntervalID
+            let beginning = 0
+            function star(e) {
+                if (beginning === 0 && e.key === 'Enter') {
+                    document.removeEventListener('keydown', star)
+                    initGame()
+                    setIntervalID = setInterval(game, speed)
+                    beginning = 1
+                    keyEventListen()
+                }
+            }
+            document.addEventListener('keydown', star)
+        </script>
+    </body>
+</html>
